@@ -154,3 +154,38 @@ func TestMultiLevelChildren(t *testing.T) {
         }
     }
 }
+
+func TestCyclicDefence(t *testing.T) {
+    child1 := Node{"chil1", []Node{}}
+    child2 := Node{"chil2", []Node{}}
+
+    node := Node{"alone", []Node{child1, child2}}
+
+    //Append top node to both children
+    child1.children = append(child1.children, node)
+    child2.children = append(child2.children, node)
+
+    elements := []Node{}
+
+    iter := node.iter()
+    for elem := iter(); elem != nil; elem = iter() {
+        elements = append(elements, *elem)
+    }
+
+    if len(elements) != 3 {
+        t.Error("Expected 3 element, but got", len(elements))
+    }
+
+    if node.name != elements[0].name {
+        t.Error("Expected node with name", node.name, "but got", elements[0].name)
+    }
+
+    if child1.name != elements[1].name {
+        t.Error("Expected node with name", child1.name, "but got", elements[1].name)
+    }
+
+    if child2.name != elements[2].name {
+        t.Error("Expected node with name", child2.name, "but got", elements[2].name)
+    }
+
+}

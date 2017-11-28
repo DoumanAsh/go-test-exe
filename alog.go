@@ -26,6 +26,9 @@ func (self *StackElement) pop() *Node {
     return nil
 }
 
+//Representation of stack.
+//Each level corresponds to Node's nesting level
+//where number of nodes can reside.
 type Stack struct {
     inner []StackElement
 }
@@ -72,17 +75,27 @@ func (node *Node) iter() func() *Node {
     stack := new(Stack)
     stack.push([]*Node{node})
 
+    //At expense of extra memory we store index of all passed nodes
+    //in order to check whether we hit the same twice.
+    used_nodes := make(map[string]bool)
+
     return func() *Node {
         for stack.len() > 0 {
             stack_elem := stack.last()
             child_elem := stack_elem.pop()
 
             if (child_elem == nil) {
+                //No more elements on currnt level pop back.
                 stack.pop()
+            } else if _, ok := used_nodes[child_elem.name]; ok {
+                //Element is already passed. Skip.
+                continue;
             } else {
+                //Add, if necessary, new level to stack.
                 if (len(child_elem.children) > 0) {
                     stack.push_owned(&child_elem.children)
                 }
+                used_nodes[child_elem.name] = true
                 return child_elem
             }
         }
