@@ -10,74 +10,93 @@ type Node struct {
     children []Node
 }
 
-//iter produces pointers to element and walks through all its children.
-//Iteration is emulated through channels.
-//
-//Algorithm:
-//1. Places element on stack with children index equal to 0
-//2. Iterate through children using index.
-//3. If child has own children, then place the child onto stack to repeat step 1.
-//4. If there is no more children, then pop last element of stack and repeat step 2.
-func (node *Node) iter() chan *Node {
-    ch := make(chan *Node)
+//Holds elements of Stack.
+type StackElement struct {
+    nodes []*Node
+}
 
-    type Stack struct {
-        node *Node
-        idx int
+func (self *StackElement) pop() *Node {
+    size := len(self.nodes)
+    if (size > 0) {
+        size--
+        result := self.nodes[size]
+        self.nodes = self.nodes[:size]
+        return result
     }
+    return nil
+}
 
-    go func(ch chan *Node) {
-        ch <- node
+type Stack struct {
+    inner []StackElement
+}
 
-        stack := []Stack {
-            Stack {
-                node: node,
-                idx: 0,
-            },
-        }
+func (stack *Stack) last() *StackElement {
+    return &stack.inner[len(stack.inner)-1]
+}
 
-        stack_len := len(stack)
-        for stack_len > 0 {
-            //Reference to last stack element.
-            stack_elem := &stack[stack_len-1]
-            //stack's children index.
-            children_idx := stack_elem.idx
-            children_len := len(stack_elem.node.children)
+func (stack *Stack) len() int {
+    return len(stack.inner)
+}
 
-            if (children_len > children_idx) {
-                //Found child, increment index.
-                stack_elem.idx = children_idx + 1
-                //Reference to stack element's child.
-                child_elem := &stack_elem.node.children[children_idx]
+func (stack *Stack) push(nodes []*Node) {
+    stack.inner = append(stack.inner, StackElement {
+        nodes: nodes,
+    })
+}
 
-                ch <- child_elem
-                if len(child_elem.children) > 0 {
-                    //child has own children so place it on stack.
-                    stack = append(stack, Stack {
-                        node: child_elem,
-                        idx: 0,
-                    })
-                    stack_len = len(stack)
-                }
+//Specialized push which transforms slice with owned elements
+//to slice of references
+func (stack *Stack) push_owned(nodes *[]Node) {
+    size := len(*nodes)
+    children := make([]*Node, size)
+    children_idx := size - 1
+    for idx := 0; idx < size; idx++ {
+        children[children_idx] = &(*nodes)[idx]
+        children_idx--
+    }
+    stack.push(children)
+}
+
+func (stack *Stack) pop() *StackElement {
+    size := stack.len()
+    if (size > 0) {
+        size--
+        result := stack.inner[size]
+        stack.inner = stack.inner[:size]
+        return &result
+    }
+    return nil
+}
+
+func (node *Node) iter() func() *Node {
+    stack := new(Stack)
+    stack.push([]*Node{node})
+
+    return func() *Node {
+        for stack.len() > 0 {
+            stack_elem := stack.last()
+            child_elem := stack_elem.pop()
+
+            if (child_elem == nil) {
+                stack.pop()
             } else {
-                //No more children, pop.
-                stack = stack[:stack_len-1]
-                stack_len = len(stack)
+                if (len(child_elem.children) > 0) {
+                    stack.push_owned(&child_elem.children)
+                }
+                return child_elem
             }
         }
 
-        close(ch)
-
-	}(ch)
-
-	return ch
+        return nil;
+    }
 }
 
 //Returns string with all elements name separated by \n
 func (node *Node) inspect() string {
     var buffer bytes.Buffer
 
-    for elem := range node.iter() {
+    iter := node.iter()
+    for elem := iter(); elem != nil; elem = iter() {
         buffer.WriteString(elem.name)
         buffer.WriteString("\n")
     }
